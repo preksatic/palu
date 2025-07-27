@@ -81,6 +81,7 @@ def get_pred(model, tokenizer, data, max_length, max_gen, prompt_format, dataset
             )[0]
         pred = tokenizer.decode(output[context_length:], skip_special_tokens=True)
         pred = post_process(pred, model_name)
+        print(pred)
         preds.append({"pred": pred, "answers": json_obj["answers"], "all_classes": json_obj["all_classes"], "length": json_obj["length"]})
     return preds
 
@@ -101,7 +102,8 @@ def main(args):
     model, tokenizer = load_model_and_tokenizer(args.model_name_or_path, use_flash_attn2=args.flash2)
     if args.method == "ours":
         replace_llama_attention_modules(model, model.config)
-
+        model.config.subspace_dim = args.subspace_dim
+        model.half()
     configure_latent_quantizer(
         model, n_bits=args.lt_bits,
         group_size=args.lt_group_size,
@@ -117,7 +119,7 @@ def main(args):
     raw_model_name = args.model_name_or_path.split("/")[-1]
     model_type = args.model_name_or_path.split("/")[-1].split('_')[0]
         
-    model.eval()
+    model.eval().cuda()
     if not model_type in model2maxlen:
         raise ValueError(f"Model {model_type} not supported")
     
@@ -158,7 +160,7 @@ def main(args):
         logger.info(f"score: {score}")
 
         # Log the results of each datasets
-        with open(f"results/Longbench/{raw_model_name}_bits_{args.lt_bits}.json", "a") as f:
+        with open(f"results/Longbench/{raw_model_name}_{args.method}.json", "a") as f:
             data_to_log = {
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "dataset": dataset,

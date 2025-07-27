@@ -92,7 +92,7 @@ class LlamaAttention_ours(nn.Module):
             if past_key_value is not None:
                 kv_seq_len += past_key_value.get_usable_length(kv_seq_len, self.layer_idx)
             cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
-            query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
+            query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
 
         else:
             query_states = self.q_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
@@ -151,16 +151,13 @@ class LlamaAttention_ours(nn.Module):
             key_states = key_states.to(target_dtype)
             value_states = value_states.to(target_dtype)
 
-        attn_output = _flash_attention_forward(
+        attn_output = self._flash_attention_forward(
             query_states,
             key_states,
             value_states,
             attention_mask,
             q_len,
             dropout=dropout_rate,
-            sliding_window=getattr(self, "sliding_window", None),
-            use_top_left_mask=self._flash_attn_uses_top_left_mask,
-            is_causal=self.is_causal,
         )
 
         attn_output = attn_output.reshape(bsz, q_len, -1).contiguous()

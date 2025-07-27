@@ -101,6 +101,7 @@ def load_model_and_tokenizer(model_name_or_path, use_flash_attn2=False):
 def add_common_args(parser: argparse.ArgumentParser):
     parser.add_argument('--model_name_or_path', type=str, help='model to load')
     parser.add_argument('--method', type=str, help='model to load')
+    parser.add_argument('--subspace_dim', type=int, help='model to load')
     parser.add_argument('--lt_bits', type=int, help='Bits for low_rank latents. \
                         When lt_bits is less than 16, we quantize the low_rank latents in low_bits', default=16)
     parser.add_argument('--lt_group_size', type=int, help='Group size for low_rank latents', default=0)
