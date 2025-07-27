@@ -17,7 +17,7 @@ from longbench_utils import scorer, MODEL2MAXLEN, DATASET2PROMPT, DATASET2MAXLEN
 from utils import load_model_and_tokenizer, add_common_args
 from palu.quant_utils import configure_latent_quantizer
 import palu.model
-
+from palu.modeling_ours import LlamaAttention_ours, replace_llama_attention_modules
 def post_process(response, model_name):
     if "xgen" in model_name:
         response = response.strip().replace("Assistant:", "")
@@ -99,6 +99,9 @@ def main(args):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
     model, tokenizer = load_model_and_tokenizer(args.model_name_or_path, use_flash_attn2=args.flash2)
+    if args.method == "ours":
+        replace_llama_attention_modules(model, model.config)
+
     configure_latent_quantizer(
         model, n_bits=args.lt_bits,
         group_size=args.lt_group_size,
