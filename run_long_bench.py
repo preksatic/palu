@@ -147,6 +147,11 @@ def main(args):
         elapsed_time = end_time - start_time
         logger.info(f"Elapsed time for dataset {dataset}: {elapsed_time/60} minutes")
         
+        with open("results/LongBench/pred_{raw_model_name}_{args.method}.json", "w", encoding="utf-8") as f:
+            for pred in preds:
+                json.dump(pred, f, ensure_ascii=False)
+                f.write('\n')
+
         # calculate score
         predictions, answers, lengths = [], [], []
         for pred in preds:

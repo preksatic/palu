@@ -84,8 +84,9 @@ class LlamaAttention_ours(nn.Module):
 
         query_states = self.q_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
 
-        if query_states.shape[-2] == 1:
+        if q_len == 1:
             key_states = F.linear(hidden_states, self.w, None).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+            #key_states = self.k_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
             value_states = self.v_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
 
             kv_seq_len = value_states.shape[-2]
@@ -107,8 +108,9 @@ class LlamaAttention_ours(nn.Module):
                 w[i*self.head_dim:(i+1)*self.head_dim, i*self.head_dim:(i+1)*self.head_dim] = P.T @ P
 
             self.w = w @ self.k_proj.weight.data.to(hidden_states.device)
-            key_states = F.linear(hidden_states, self.w, None).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
-   
+            #key_states = F.linear(hidden_states, self.w, None).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+            key_states = self.k_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+
             _, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
 
         if past_key_value is not None:
