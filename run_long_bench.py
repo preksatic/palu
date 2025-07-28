@@ -81,7 +81,6 @@ def get_pred(model, tokenizer, data, max_length, max_gen, prompt_format, dataset
             )[0]
         pred = tokenizer.decode(output[context_length:], skip_special_tokens=True)
         pred = post_process(pred, model_name)
-        print(pred)
         preds.append({"pred": pred, "answers": json_obj["answers"], "all_classes": json_obj["all_classes"], "length": json_obj["length"]})
     return preds
 
@@ -147,7 +146,7 @@ def main(args):
         elapsed_time = end_time - start_time
         logger.info(f"Elapsed time for dataset {dataset}: {elapsed_time/60} minutes")
         
-        with open("results/LongBench/pred_{raw_model_name}_{args.method}.json", "w", encoding="utf-8") as f:
+        with open(f"results/Longbench/{dataset}/pred_{raw_model_name}_{args.method}.json", "w", encoding="utf-8") as f:
             for pred in preds:
                 json.dump(pred, f, ensure_ascii=False)
                 f.write('\n')
