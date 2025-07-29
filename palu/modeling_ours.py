@@ -43,8 +43,6 @@ class LlamaAttention_ours(nn.Module):
         self.rope_theta = config.rope_theta
         self.is_causal = True
         self._flash_attn_uses_top_left_mask = not is_flash_attn_greater_or_equal_2_10()
-        self.subspace_dim = config.subspace_dim
-        self.post_rope = config.post_rope
 
         if (self.head_dim * self.num_heads) != self.hidden_size:
             raise ValueError(
@@ -85,7 +83,7 @@ class LlamaAttention_ours(nn.Module):
 
         query_states = self.q_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
 
-        if self.post_rope:
+        if self.config.post_rope:
             if q_len == 1:
                 key_states = self.k_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
                 value_states = self.v_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
@@ -106,8 +104,8 @@ class LlamaAttention_ours(nn.Module):
                 query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
                 self.w = torch.empty(self.num_heads, self.head_dim, self.head_dim, dtype=self.k_proj.weight.dtype, device=hidden_states.device)
                 for i in range(self.num_heads):
-                    P = self.get_query_subspace(query_states[0][i], self.subspace_dim)
-                    w[i] = P.T @ P
+                    P = self.get_query_subspace(query_states[0][i], self.config.subspace_dim)
+                    self.w[i] = P.T @ P
 
         else:
             if q_len == 1:
@@ -130,7 +128,7 @@ class LlamaAttention_ours(nn.Module):
                 query_states, _ = apply_rotary_pos_emb(query_states, value_states, cos, sin, position_ids)
                 w = torch.zeros(self.hidden_size, self.hidden_size, dtype=self.k_proj.weight.dtype, device=hidden_states.device)
                 for i in range(self.num_heads):
-                    P = self.get_query_subspace(query_states[0][i], self.subspace_dim)
+                    P = self.get_query_subspace(query_states[0][i], self.config.subspace_dim)
                     w[i*self.head_dim:(i+1)*self.head_dim, i*self.head_dim:(i+1)*self.head_dim] = P.T @ P
 
                 self.w = w @ self.k_proj.weight.data.to(hidden_states.device)
