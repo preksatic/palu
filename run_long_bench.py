@@ -102,6 +102,7 @@ def main(args):
     if args.method == "ours":
         replace_llama_attention_modules(model, model.config)
         model.config.subspace_dim = args.subspace_dim
+        model.config.post_rope = args.post_rope
         model.half()
     configure_latent_quantizer(
         model, n_bits=args.lt_bits,
