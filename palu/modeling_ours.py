@@ -106,6 +106,7 @@ class LlamaAttention_ours(nn.Module):
                 for i in range(self.num_heads):
                     P = self.get_query_subspace(query_states[0][i], self.config.subspace_dim)
                     self.w[i] = P.T @ P
+                key_states = key_states @ self.w
 
         else:
             if q_len == 1:
@@ -132,8 +133,8 @@ class LlamaAttention_ours(nn.Module):
                     w[i*self.head_dim:(i+1)*self.head_dim, i*self.head_dim:(i+1)*self.head_dim] = P.T @ P
 
                 self.w = w @ self.k_proj.weight.data.to(hidden_states.device)
-                #key_states = F.linear(hidden_states, self.w, None).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
-                key_states = self.k_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+                key_states = F.linear(hidden_states, self.w, None).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+                #key_states = self.k_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
 
                 _, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
 

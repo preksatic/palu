@@ -147,7 +147,7 @@ def main(args):
         elapsed_time = end_time - start_time
         logger.info(f"Elapsed time for dataset {dataset}: {elapsed_time/60} minutes")
         
-        with open(f"results/Longbench/{dataset}/pred_{raw_model_name}_{args.method}_post_rope.json", "w", encoding="utf-8") as f:
+        with open(f"results/Longbench/{dataset}/pred_{raw_model_name}_{args.method}_{args.subspace_dim}_post_rope.json", "w", encoding="utf-8") as f:
             for pred in preds:
                 json.dump(pred, f, ensure_ascii=False)
                 f.write('\n')
@@ -165,7 +165,7 @@ def main(args):
         logger.info(f"score: {score}")
 
         # Log the results of each datasets
-        with open(f"results/Longbench/{raw_model_name}_{args.method}_post_rope.json", "a") as f:
+        with open(f"results/Longbench/{raw_model_name}_{args.method}_{args.subspace_dim}_post_rope.json", "a") as f:
             data_to_log = {
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "dataset": dataset,
