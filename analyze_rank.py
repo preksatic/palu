@@ -4,7 +4,7 @@ import torch
 import os
 import click
 from tqdm import tqdm
-from .data_utils import get_calib_data
+from palu.data_utils import get_calib_data
 from transformers.models.llama.modeling_llama import LlamaRotaryEmbedding, apply_rotary_pos_emb
 from utils import load_model_and_tokenizer
 
@@ -25,6 +25,7 @@ def numeric_rank(singular_values, rel_tol=1e-3):
     thresh = singular_values[0] * rel_tol
     return int((singular_values > thresh).sum().item())
 
+@torch.no_grad()
 def get_query_matrix(model, tokenizer, dev):
     model_id = model.config._name_or_path
     #NOTE (brian1009): Might need to check the random seed, currently we have < 0.1 perplexity difference at Llama2-7B
@@ -32,7 +33,7 @@ def get_query_matrix(model, tokenizer, dev):
         "wikitext2", 
         tokenizer, 
         model_id, 
-        nsamples=256, 
+        nsamples=4, 
         seqlen=2048
     )
 
@@ -86,27 +87,35 @@ def get_query_matrix(model, tokenizer, dev):
     query_matrices = []
     logger.info("[Decomposition] Start to calculate the q matrix in layer-wise manner...")
 
+    head_dim = model.config.hidden_size // model.config.num_attention_heads
+
     rotary_emb = LlamaRotaryEmbedding(
-            model.config.head_dim,
+            head_dim,
             max_position_embeddings=model.config.max_position_embeddings,
             base=model.config.rope_theta,
             )
 
-    for i in tqdm(range(len(layers))):
+
+    for i in tqdm(range(len(layers)- 27)):
         layer = layers[i].to(dev)
         subset = find_layers(layer)
         def hook(module, input, output):
-            q_matrix = output[0].view(-1, model.config.num_heads, model.config.head_dim).transpose(0, 1)
-            cos, sin = rotary_emb(q_matrix, seq_len=q_matrix.shape[1])
+            q_matrix = output[0].view(-1, model.config.num_attention_heads, head_dim).transpose(0, 1)
+            q_matrix = q_matrix[0]
+            cos, sin = rotary_emb(q_matrix.cpu(), seq_len=q_matrix.shape[0])
+            cos = cos.to(q_matrix.device)
+            sin = sin.to(q_matrix.device)
             q_matrix, _ = apply_rotary_pos_emb(q_matrix, q_matrix, cos, sin, position_ids[0])
             if module.query_matrix == None:
                 module.query_matrix = q_matrix.detach().clone()
             else:
-                module.query_matrix = torch.cat((module.query_matrix, q_matrix), dim = 1)
-            del inp, adds, adds_sum, output
+                module.query_matrix = torch.cat((module.query_matrix, q_matrix), dim = 0)
+            del output
             torch.cuda.empty_cache()
         handles = []
         for name in subset:
+            if not ("q_proj" in name):
+                continue
             subset[name].query_matrix = None
             handles.append(subset[name].register_forward_hook(hook))
         for j in range(inps.shape[0]):
@@ -114,14 +123,11 @@ def get_query_matrix(model, tokenizer, dev):
         for h in handles:
             h.remove()
         layer = layer.cpu()
-        for name in subset:
-            subset[name].query_matrix = subset[name].query_matrix.cpu()
-        torch.cuda.empty_cache()
         layer_query_matrices = {}
         for name in subset:
             if not ("q_proj" in name):
                 continue
-            layer_query_matrices[name] = subset[name].query_matrix
+            layer_query_matrices[name] = subset[name].query_matrix.cpu()
             torch.cuda.empty_cache()
         query_matrices.append(layer_query_matrices)
         layers[i] = layer.cpu()
@@ -133,16 +139,17 @@ def get_query_matrix(model, tokenizer, dev):
 
 if __name__ == "__main__":    
    
-    model, tokenizer = load_model_and_tokenizer("meta-llama/Llama-7b-2b-hf")
+    model, tokenizer = load_model_and_tokenizer("meta-llama/Llama-2-7b-hf")
     query_matrices = get_query_matrix(model, tokenizer, "cuda")
 
     for layer_idx in range(len(query_matrices)):
         layer_query_matrices = query_matrices[layer_idx]
         for name in layer_query_matrices:
             q_matrix = layer_query_matrices[name]
-            for i in range(model.config.num_head):
-                sv = torch.linalg.svdvals(q_matrix[i].float())
-                print(f"layer {layer_idx} head {i}: {numeric_rank}")
+            sv = torch.linalg.svdvals(q_matrix.float().to("cuda"))
+            sv = sv.cpu()
+            print(f"layer {layer_idx} head 0: {numeric_rank(sv)}")
+            torch.cuda.empty_cache()
 
 
 
