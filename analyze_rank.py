@@ -18,7 +18,7 @@ def find_layers(module, layers=[nn.Conv2d, nn.Linear], name=''):
         ))
     return res
 
-def numeric_rank(singular_values, rel_tol=1e-3):
+def numeric_rank(singular_values, rel_tol=1e-1):
     """
     Count of singular values greater than rel_tol * max(sv)
     """
@@ -33,7 +33,7 @@ def get_query_matrix(model, tokenizer, dev):
         "wikitext2", 
         tokenizer, 
         model_id, 
-        nsamples=4, 
+        nsamples=32, 
         seqlen=2048
     )
 
@@ -96,16 +96,17 @@ def get_query_matrix(model, tokenizer, dev):
             )
 
 
-    for i in tqdm(range(len(layers)- 27)):
+    for i in tqdm(range(len(layers))):
         layer = layers[i].to(dev)
         subset = find_layers(layer)
         def hook(module, input, output):
-            q_matrix = output[0].view(-1, model.config.num_attention_heads, head_dim).transpose(0, 1)
-            q_matrix = q_matrix[0]
-            cos, sin = rotary_emb(q_matrix.cpu(), seq_len=q_matrix.shape[0])
-            cos = cos.to(q_matrix.device)
-            sin = sin.to(q_matrix.device)
-            q_matrix, _ = apply_rotary_pos_emb(q_matrix, q_matrix, cos, sin, position_ids[0])
+            q_matrix = output.view(1, -1, model.config.num_attention_heads, head_dim).transpose(1, 2)
+            #cos, sin = rotary_emb(q_matrix.cpu(), seq_len=q_matrix.shape[-2])
+            #cos = cos.to(q_matrix.device)
+            #sin = sin.to(q_matrix.device)
+            #q_matrix, _ = apply_rotary_pos_emb(q_matrix, q_matrix, cos, sin, position_ids[0].unsqueeze(0))
+            q_matrix = q_matrix[0][15]
+
             if module.query_matrix == None:
                 module.query_matrix = q_matrix.detach().clone()
             else:
@@ -141,6 +142,7 @@ if __name__ == "__main__":
    
     model, tokenizer = load_model_and_tokenizer("meta-llama/Llama-2-7b-hf")
     query_matrices = get_query_matrix(model, tokenizer, "cuda")
+    sum = 0
 
     for layer_idx in range(len(query_matrices)):
         layer_query_matrices = query_matrices[layer_idx]
@@ -148,9 +150,12 @@ if __name__ == "__main__":
             q_matrix = layer_query_matrices[name]
             sv = torch.linalg.svdvals(q_matrix.float().to("cuda"))
             sv = sv.cpu()
-            print(f"layer {layer_idx} head 0: {numeric_rank(sv)}")
+            r = numeric_rank(sv)
+            sum += r
+            print(f"layer {layer_idx} head 15: {r}")
             torch.cuda.empty_cache()
 
+    print(sum // 32)
 
 
 
