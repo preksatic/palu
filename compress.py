@@ -3,7 +3,7 @@ import torch
 import sys
 from loguru import logger
 from utils import set_seed, dump_to_huggingface_repos, load_model_and_tokenizer
-from palu.rank_search import rank_search
+from palu.rank_search import *
 from tqdm import tqdm
 from palu.decomposition import compress_model
 from run_lm_eval import run_lm_eval_zero_shot
@@ -17,7 +17,11 @@ def compress(args):
     model, tokenizer = load_model_and_tokenizer(args.model_id)
     model.to(torch.device(args.device))
     # Step 1: Perform rank selection to get layer-wise compression rate
-    search_results, rank_sum, total_rank = rank_search(model, tokenizer, args)
+    if args.decompose_method == 'ours':
+        args.head_group_size = 1
+        search_results, rank_sum, total_rank = rank_search_for_key(model, tokenizer, args)
+    else:
+        search_results, rank_sum, total_rank = rank_search(model, tokenizer, args)
     # Step 2: Compress models
     compress_model(model, tokenizer, args, args.device, search_results)
     
@@ -123,10 +127,16 @@ if __name__ == "__main__":
         '--decompose_method',
         type=str,
         default='whiten',
-        choices=['whiten', 'svd'],
+        choices=['whiten', 'svd', 'ours'],
         help='Decomposition method'
     )
-    
+
+    parser.add_argument(
+        '--rq',
+        type=float,
+        default=0.0
+    )
+
     args = parser.parse_args()
     
     logger.remove()
