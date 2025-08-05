@@ -171,10 +171,11 @@ def get_query_key_matrix(model, tokenizer, args, dev):
         layers[i] = layer.cpu()
         inps = outs
         torch.cuda.empty_cache()
-
+    '''
     if args.use_cache:
         torch.save(calibration_matrices, cache_file)
         logger.info(f"Save the whiten calibration matrix dict to:  {cache_file}")
+    '''
 
 
 
