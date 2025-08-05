@@ -26,7 +26,7 @@ def get_query_key_matrix(model, tokenizer, args, dev):
         "wikitext2", 
         tokenizer, 
         model_id, 
-        nsamples=256, 
+        nsamples=128, 
         seqlen=2048
     )
 
@@ -447,6 +447,6 @@ def compress_model(model, tokenizer, args, dev, selection_result):
     elif args.decompose_method == "svd":
         compress_model_svd(model, selection_result)
     elif args.decompose_method == "ours":
-        compress_model_ours(model, args, dev, selection_result)
+        compress_model_ours(model, tokenizer, args, dev, selection_result)
     else:
         raise ValueError(f"Decomposition method {args.decompose_method} is not supported.")
