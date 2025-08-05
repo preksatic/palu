@@ -410,14 +410,15 @@ def compress_model_ours(model, tokenizer, args, dev, selection_result):
 
     logger.info(f"Start decompose the layer with selected ranks... #target layers: {len(selection_result.keys())}")
     for layername, selected_head_rank in tqdm(selection_result.items()):
-        logger.debug(f"Decompose {layername} with ranks: {selected_head_rank}")
+        logger.debug(f"Decompose {layername} with ranks: {selected_head_rank}, rate: {args.rq}")
         # set ratio
         raw_linear = module_dict[layername]
         info = linear_info[raw_linear]
     
         head_wise_svd_linear = HeadwiseLowRankModule.from_linear_ours(
             raw_linear,
-            selected_head_rank
+            selected_head_rank,
+            args.rq
         )
         setattr(info["father"], info["name"],  head_wise_svd_linear)
 
