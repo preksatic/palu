@@ -115,7 +115,7 @@ def get_query_key_matrix(model, tokenizer, args, dev):
     for i in tqdm(range(len(layers))):
         layer = layers[i].to(dev)
         subset = find_layers(layer)
-        def hook(module, input, output):
+        def hook_q(module, input, output):
             q_matrix = output.view(1, -1, model.config.num_attention_heads, head_dim).transpose(1, 2)
             cos, sin = rotary_emb(q_matrix.cpu(), seq_len=q_matrix.shape[-2])
             cos = cos.to(q_matrix.device)
@@ -129,12 +129,24 @@ def get_query_key_matrix(model, tokenizer, args, dev):
                 module.matrix = torch.cat((module.matrix, q_matrix), dim = 1)
             del output
             torch.cuda.empty_cache()
+        def hook_k(module, input, output):
+            k_matrix = output.view(1, -1, model.config.num_attention_heads, head_dim).transpose(1, 2)
+            k_matrix = k_matrix[0]
+
+            if module.matrix == None:
+                module.matrix = k_matrix.detach().clone()
+            else:
+                module.matrix = torch.cat((module.matrix, k_matrix), dim = 1)
+            del output
+            torch.cuda.empty_cache()
         handles = []
         for name in subset:
-            if not ("q_proj" in name or "k_proj" in name):
-                continue
-            subset[name].matrix = None
-            handles.append(subset[name].register_forward_hook(hook))
+            if "q_proj" in name:
+                subset[name].matrix = None
+                handles.append(subset[name].register_forward_hook(hook_q))
+            elif "k_proj" in name:
+                subset[name].matrix = None
+                handles.append(subset[name].register_forward_hook(hook_k))
         for j in range(inps.shape[0]):
             outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_masks, position_ids=position_ids[0].unsqueeze(0))[0]
         for h in handles:
@@ -145,8 +157,10 @@ def get_query_key_matrix(model, tokenizer, args, dev):
         key_matrix = None
         for name in subset:
             if "q_proj" in name:
-                U, _, Vh = torch.linalg.svd(subset[name].matrix.float(), full_matrices=False)
+                _, _, Vh = torch.linalg.svd(subset[name].matrix.float(), full_matrices=False)
                 query_subspace = Vh.to(subset[name].matrix.dtype).cpu()
+                subset[name].matrix = subset[name].matrix.cpu()
+                torch.cuda.empty_cache()
         for name in subset:
             if "k_proj" in name:
                 key_matrix = subset[name].matrix.cpu()
