@@ -214,20 +214,20 @@ class HeadwiseLowRankModule(nn.Module):
         if old_module.bias is not None:
             b = old_module.bias.data.reshape(len(ranks), -1)
 
-        query_subspace = old_module.query_subspace
-        key_matrix = old_module.key_matrix
+        query_subspace = old_module.query_subspace.to(w.device)
+        key_matrix = old_module.matrix.to(w.device)
 
         for i in range(len(ranks)):
             rank_q = round(ranks[i] * rq)
             rank_k = ranks[i] - rank_q
             q = query_subspace[i][:rank_q, :]
-            k = key_matrix[i] @ (torch.eye(key_matrix.shape[-1]) - q.T @ q)
+            k = key_matrix[i] @ (torch.eye(key_matrix.shape[-1]).to(q.dtype).to(q.device) - q.T @ q)
             _, _, key_subspace = torch.linalg.svd(k.float(), full_matrices=False)
-            key_subspace = key_subspace[:rank_k, :]
+            key_subspace = key_subspace[:rank_k, :].to(q.dtype)
             P = torch.cat((q, key_subspace), dim=0)
             assert(P.shape == (ranks[i], key_matrix.shape[-1]))
             new_module.VT.weight.data = P @ w[i]
-            new_module.U[i] = P.T
+            new_module.U[i].weight.data = P.T.contiguous()
 
         return new_module
     
