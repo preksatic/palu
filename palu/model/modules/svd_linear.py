@@ -217,6 +217,8 @@ class HeadwiseLowRankModule(nn.Module):
         query_subspace = old_module.query_subspace.to(w.device)
         key_matrix = old_module.matrix.to(w.device)
 
+
+        wr = []
         for i in range(len(ranks)):
             rank_q = round(ranks[i] * rq)
             rank_k = ranks[i] - rank_q
@@ -226,8 +228,10 @@ class HeadwiseLowRankModule(nn.Module):
             key_subspace = key_subspace[:rank_k, :].to(q.dtype)
             P = torch.cat((q, key_subspace), dim=0)
             assert(P.shape == (ranks[i], key_matrix.shape[-1]))
-            new_module.VT.weight.data = P @ w[i]
+            wr.append(P @ w[i])
             new_module.U[i].weight.data = P.T.contiguous()
+
+        new_module.VT.weight.data = torch.cat(wr, dim=0).contiguous()
 
         return new_module
     
